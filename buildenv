@@ -50,17 +50,32 @@ export ZOPEN_SYSTEM_PREREQ=""
 ### Required user-supplied functions
 ###
 
-zopen_check_results()
+zopen_check_results() 
 {
-  dir="$1"
-  pfx="$2"
   chk="$1/$2_check.log"
 
-  # Echo the following information to gauge build health
-  echo "actualFailures:0"
-  echo "totalTests:1"
-  echo "expectedFailures:0"
-  echo "expectedTotalTests:1"
+  totalTests=$(grep "^# TOTAL: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualFailures=$(grep "^# FAIL: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualPass=$(grep "^# PASS: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualErrors=$(grep "^# ERROR: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualSkip=$(grep "^# SKIP: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualXPass=$(grep "^# XPASS: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualXFail=$(grep "^# XFAIL: " "$chk" | awk '{sum+=$3} END{print sum}')
+
+  expectedFailures=0
+  expectedErrors=0
+  expectedPass=4
+  expectedSkip=0
+
+  totalExpectedFailures=$((expectedFailures+expectedErrors))
+  totalActualFailures=$((actualFailures+actualErrors+actualXPass))
+  totalRunTests=$((totalTests-actualSkip))
+
+    cat <<ZZ
+actualFailures:$totalActualFailures
+totalTests:$totalRunTests
+expectedFailures:$totalExpectedFailures
+ZZ
 }
 
 zopen_get_version()
