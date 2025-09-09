@@ -1,6 +1,6 @@
 # Update bump details accordingly. Use bump check to confirm.
-# bump: cppunit-version /CPPUNIT_VERSION="(.*)"/ https://dev-www.libreoffice.org/src/cppunit-1.15.1.tar.gz|semver:*
-# CPPUNIT_VERSION="V.R.M" # Specify a stable release
+# bump: cppunit-version /CPPUNIT_VERSION="(.*)"/ https://dev-www.libreoffice.org/src/|re:/href="cppunit-([\d.]+).tar.gz"/$1/|semver:*
+CPPUNIT_VERSION="1.15.1" # Specify a stable release
 # export ZOPEN_STABLE_TAG="v${CPPUNIT_VERSION}"
 
 ###
@@ -15,8 +15,8 @@
 export ZOPEN_BUILD_LINE="STABLE"
 
 ## Required IF ZOPEN_BUILD_LINE='STABLE'
-export ZOPEN_STABLE_URL="https://dev-www.libreoffice.org/src/cppunit-1.15.1.tar.gz"  # Specify the stable build URL (either git or tarball)
-export ZOPEN_STABLE_DEPS="zoslib make grep" # Specify the stable build dependencies.
+export ZOPEN_STABLE_URL="https://dev-www.libreoffice.org/src/cppunit-${CPPUNIT_VERSION}.tar.gz"  # Specify the stable build URL (either git or tarball)
+export ZOPEN_STABLE_DEPS="zoslib make grep gawk doxygen sed coreutils" # Specify the stable build dependencies.
 
 ## Required IF ZOPEN_BUILD_LINE='DEV'
 export ZOPEN_DEV_URL=""   # Specify the dev build URL
@@ -50,24 +50,39 @@ export ZOPEN_SYSTEM_PREREQ=""
 ### Required user-supplied functions
 ###
 
-zopen_check_results()
+zopen_check_results() 
 {
-  dir="$1"
-  pfx="$2"
   chk="$1/$2_check.log"
 
-  # Echo the following information to gauge build health
-  echo "actualFailures:0"
-  echo "totalTests:1"
-  echo "expectedFailures:0"
-  echo "expectedTotalTests:1"
+  totalTests=$(grep "^# TOTAL: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualFailures=$(grep "^# FAIL: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualPass=$(grep "^# PASS: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualErrors=$(grep "^# ERROR: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualSkip=$(grep "^# SKIP: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualXPass=$(grep "^# XPASS: " "$chk" | awk '{sum+=$3} END{print sum}')
+  actualXFail=$(grep "^# XFAIL: " "$chk" | awk '{sum+=$3} END{print sum}')
+
+  expectedFailures=0
+  expectedErrors=0
+  expectedPass=4
+  expectedSkip=0
+
+  totalExpectedFailures=$((expectedFailures+expectedErrors))
+  totalActualFailures=$((actualFailures+actualErrors+actualXPass))
+  totalRunTests=$((totalTests-actualSkip))
+
+    cat <<ZZ
+actualFailures:$totalActualFailures
+totalTests:$totalRunTests
+expectedFailures:$totalExpectedFailures
+ZZ
 }
 
 zopen_get_version()
 {
   # Modify to echo the version of your tool/library
   # Rather than hardcoding the version, obtain the version by running the tool/library
-  echo "1.0.0"
+  echo $CPPUNIT_VERSION
 }
 
 
@@ -75,10 +90,16 @@ zopen_get_version()
 ### Optional user-supplied functions for zopen-build
 ###
 
-#zopen_append_to_env() {
-  ## This function runs as part of generation of the .env file. The output of the
-  ## function is appended to .env.
-#}
+zopen_append_to_env() {
+cat <<ZZ
+if [ ! -z "\$ZOPEN_IN_ZOPEN_BUILD" ]; then
+  export ZOPEN_EXTRA_CFLAGS="\${ZOPEN_EXTRA_CFLAGS} -I\$PWD/include"
+  export ZOPEN_EXTRA_CXXFLAGS="\${ZOPEN_EXTRA_CXXFLAGS} -I\$PWD/include"
+  export ZOPEN_EXTRA_LDFLAGS="\${ZOPEN_EXTRA_LDFLAGS} -L\$PWD/lib"
+  export ZOPEN_EXTRA_LIBS="\${ZOPEN_EXTRA_LIBS} -lcppunit"
+fi
+ZZ
+}
 
 #zopen_append_to_setup(){
   ## This function runs as part of generation of the setup.sh file. The output of
@@ -154,7 +175,7 @@ zopen_get_version()
 #export ZOPEN_CLEAN_OPTS="" ## Options to pass to clean up  program (defaults to 'clean')
 #export ZOPEN_CONFIGURE_MINIMAL="" ## Configuration program will not be passed CFLAGS, LDFLAGS, CPPFLAGS options but will get them from env vars.
 #export ZOPEN_CONFIGURE_OPTS="" ## Options to pass to configuration program (defaults to '--prefix=')
-#export ZOPEN_EXTRA_CONFIGURE_OPTS="" ## Extra configure options to pass to configuration program. (defaults to '')
+export ZOPEN_EXTRA_CONFIGURE_OPTS="--disable-dot" ## Extra configure options to pass to configuration program. (defaults to '')
 #export ZOPEN_INSTALL_OPTS="" ## Options to pass to installation program (defaults to 'install')
 #export ZOPEN_MAKE_MINIMAL="" ## Build program will not be passed CFLAGS, LDFLAGS, CPPFLAGS options but will get them from env vars.
 #export ZOPEN_MAKE_OPTS="" ## Options to pass to build program (defaults to '-j')
